@@ -43,7 +43,7 @@ final class FacebookInputBar: InputBarAccessoryView {
         setLeftStackViewWidthConstant(to: 36, animated: false)
         setStackViewItems([button], forStack: .left, animated: false)
 
-        shouldAnimateTextDidChangeLayout = true
+        animationDurationForTextHeightDidChange = 0.0
     }
     
 }

@@ -281,11 +281,25 @@ open class InputBarAccessoryView: UIView {
     /// A boolean that determines whether the sendButton's `isEnabled` state should be managed automatically.
     /// The default value is `TRUE`
     open var shouldManageSendButtonEnabledState = true
-
+    
     /// A boolean that determines if the layout required for new or typed text should
     /// be animated.
-    /// The default value is `FALSE`
-    open var shouldAnimateTextDidChangeLayout = false
+    /// The default value is FALSE.
+    ///
+    /// - Deprecated: Use `animationDurationForTextHeightDidChange` instead.
+    @available(*, deprecated, message: "Use `animationDurationForTextHeightDidChange` instead.")
+    open var shouldAnimateTextDidChangeLayout = false {
+        didSet {
+            // Compatible with the old version.
+            animationDurationForTextHeightDidChange = 0.15
+        }
+    }
+
+    /// The duration of the animation when the text input height changes.
+    /// If the value is greater than 0, the height change will be animated.
+    /// If the value is 0 or less, the height change will occur without animation.
+    /// Default value is `0.25`.
+    open var animationDurationForTextHeightDidChange: TimeInterval = 0.25
 
     /// The height that will fit the current text in the InputTextView based on its current bounds
     public var requiredInputTextViewHeight: CGFloat {
@@ -880,7 +894,7 @@ open class InputBarAccessoryView: UIView {
         }
 
         // Capture change before iterating over the InputItem's
-        let shouldInvalidateIntrinsicContentSize = requiredInputTextViewHeight != inputTextView.bounds.height
+        let shouldInvalidateIntrinsicContentSize = abs(requiredInputTextViewHeight - inputTextView.bounds.height) >= 0.5
 
         items.forEach { $0.textViewDidChangeAction(with: self.inputTextView) }
         delegate?.inputBar(self, textViewTextDidChangeTo: trimmedText)
@@ -888,11 +902,13 @@ open class InputBarAccessoryView: UIView {
         if shouldInvalidateIntrinsicContentSize {
             // Prevent un-needed content size invalidation
             invalidateIntrinsicContentSize()
-            if shouldAnimateTextDidChangeLayout {
+            if animationDurationForTextHeightDidChange > 0.000001 {
                 inputTextView.layoutIfNeeded()
-                UIView.animate(withDuration: 0.15) {
+                UIView.animate(withDuration: animationDurationForTextHeightDidChange) {
                     self.layoutContainerViewIfNeeded()
                 }
+            } else {
+                self.layoutContainerViewIfNeeded()
             }
         }
     }
