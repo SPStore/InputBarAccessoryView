@@ -902,8 +902,8 @@ open class InputBarAccessoryView: UIView {
         if shouldInvalidateIntrinsicContentSize {
             // Prevent un-needed content size invalidation
             invalidateIntrinsicContentSize()
-            if animationDurationForTextHeightDidChange > 0.000001 {
-                inputTextView.layoutIfNeeded()
+            if animationDurationForTextHeightDidChange > 1e-6 {
+                inputTextView.setNeedsLayout()
                 UIView.animate(withDuration: animationDurationForTextHeightDidChange) {
                     self.layoutContainerViewIfNeeded()
                 }
