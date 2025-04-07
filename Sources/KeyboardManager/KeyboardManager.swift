@@ -40,6 +40,9 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     /// A weak reference to a view bounded to the top of the keyboard to act as an `InputAccessoryView`
     /// but kept within the bounds of the `UIViewController`s view
     open weak var inputAccessoryView: UIView?
+    
+    /// A closure that is called after the `inputAccessoryView` has been successfully bound to the keyboard.
+    open var inputAccessoryViewDidBind: (() -> Void)?
         
     /// A flag that indicates if a portion of the keyboard is visible on the screen
     /// - Deprecated: Use `isKeyboardVisible` instead.
@@ -186,12 +189,14 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
             right: inputAccessoryView.rightAnchor.constraint(equalTo: superview.rightAnchor)
         ).activate()
         
+        self.inputAccessoryViewDidBind?()
+
         callbacks[.willShow] = { [weak self] notification in
             guard let self,
                   self.isKeyboardVisible,
                   self.constraints?.bottom?.constant == self.additionalInputViewBottomConstraintConstant(),
                   notification.isForCurrentApp,
-                  self.isViewActuallyVisible(self.inputAccessoryView)
+                  self.isInputAccessoryViewVisible()
             else { return }
 
             let keyboardHeight = notification.endFrame.height
@@ -216,7 +221,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
             guard let self,
                   self.isKeyboardVisible,
                   notification.isForCurrentApp,
-                  self.isViewActuallyVisible(self.inputAccessoryView)
+                  self.isInputAccessoryViewVisible()
             else { return }
 
             let keyboardHeight = notification.endFrame.height
@@ -240,7 +245,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
         callbacks[.willHide] = { [weak self] notification in
             guard let self,
                   notification.isForCurrentApp,
-                  self.isViewActuallyVisible(self.inputAccessoryView)
+                  self.isInputAccessoryViewVisible()
             else { return }
             
             self.justDidWillHide = true
@@ -275,8 +280,8 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
         return self
     }
     
-    func isViewActuallyVisible(_ view: UIView?) -> Bool {
-        guard let view = view else { return false }
+    open func isInputAccessoryViewVisible() -> Bool {
+        guard let view = self.inputAccessoryView else { return false }
 
         // 检查是否挂载到 window
         guard view.window != nil else { return false }
@@ -289,7 +294,6 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
         
         return true
     }
-
     
     // MARK: - Keyboard Notifications
     
