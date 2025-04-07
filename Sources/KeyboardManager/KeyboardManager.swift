@@ -186,67 +186,86 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
             right: inputAccessoryView.rightAnchor.constraint(equalTo: superview.rightAnchor)
         ).activate()
         
-        callbacks[.willShow] = { [weak self] (notification) in
-            guard
-                self?.isKeyboardVisible == true,
-                self?.constraints?.bottom?.constant == self?.additionalInputViewBottomConstraintConstant(),
-                notification.isForCurrentApp
+        startKeyboardTracking()
+        
+        return self
+    }
+    
+    @discardableResult
+    open func startKeyboardTracking(additionalBottomSpace: (() -> CGFloat)? = nil) -> Self {
+        self.additionalBottomSpace = additionalBottomSpace
+
+        callbacks[.willShow] = { [weak self] notification in
+            guard let self,
+                  self.isKeyboardVisible,
+                  self.constraints?.bottom?.constant == self.additionalInputViewBottomConstraintConstant(),
+                  notification.isForCurrentApp
             else { return }
-            
+
             let keyboardHeight = notification.endFrame.height
             let animateAlongside = {
-                self?.animateAlongside(notification) {
-                    self?.constraints?.bottom?.constant = min(0, -keyboardHeight + (self?.bottomGap ?? 0)) - (additionalBottomSpace?() ?? 0)
-                    self?.inputAccessoryView?.superview?.layoutIfNeeded()
+                self.animateAlongside(notification) {
+                    self.constraints?.bottom?.constant = min(0, -keyboardHeight + self.bottomGap) - (additionalBottomSpace?() ?? 0)
+                    self.inputAccessoryView?.superview?.layoutIfNeeded()
                 }
             }
             animateAlongside()
-            
-            // Trigger a new animation if gap changed, this typically happens when using pagesheet on portrait iPad
-            let initialBottomGap = self?.bottomGap ?? 0
+
+            let initialBottomGap = self.bottomGap
             DispatchQueue.main.async {
-                let newBottomGap = self?.bottomGap ?? 0
+                let newBottomGap = self.bottomGap
                 if newBottomGap != 0 && newBottomGap != initialBottomGap {
                     animateAlongside()
                 }
             }
         }
-        callbacks[.willChangeFrame] = { [weak self] (notification) in
+
+        callbacks[.willChangeFrame] = { [weak self] notification in
+            guard let self,
+                  self.isKeyboardVisible,
+                  notification.isForCurrentApp
+            else { return }
+
             let keyboardHeight = notification.endFrame.height
-            guard
-                self?.isKeyboardVisible == true,
-                notification.isForCurrentApp
-            else {
-                return
-            }
             let animateAlongside = {
-                self?.animateAlongside(notification) {
-                    self?.constraints?.bottom?.constant = min(0, -keyboardHeight + (self?.bottomGap ?? 0)) - (additionalBottomSpace?() ?? 0)
-                    self?.inputAccessoryView?.superview?.layoutIfNeeded()
+                self.animateAlongside(notification) {
+                    self.constraints?.bottom?.constant = min(0, -keyboardHeight + self.bottomGap) - (additionalBottomSpace?() ?? 0)
+                    self.inputAccessoryView?.superview?.layoutIfNeeded()
                 }
             }
             animateAlongside()
-            
-            // Trigger a new animation if gap changed, this typically happens when using pagesheet on portrait iPad
-            let initialBottomGap = self?.bottomGap ?? 0
+
+            let initialBottomGap = self.bottomGap
             DispatchQueue.main.async {
-                let newBottomGap = self?.bottomGap ?? 0
-                if newBottomGap != 0 && newBottomGap != initialBottomGap && !(self?.justDidWillHide ?? false) {
+                let newBottomGap = self.bottomGap
+                if newBottomGap != 0 && newBottomGap != initialBottomGap && !self.justDidWillHide {
                     animateAlongside()
                 }
             }
         }
-        callbacks[.willHide] = { [weak self] (notification) in
-            guard notification.isForCurrentApp else { return }
-            self?.justDidWillHide = true
-            self?.animateAlongside(notification) { [weak self] in
-                self?.constraints?.bottom?.constant = self?.additionalInputViewBottomConstraintConstant() ?? 0
-                self?.inputAccessoryView?.superview?.layoutIfNeeded()
+
+        callbacks[.willHide] = { [weak self] notification in
+            guard let self, notification.isForCurrentApp else { return }
+            self.justDidWillHide = true
+            self.animateAlongside(notification) {
+                self.constraints?.bottom?.constant = self.additionalInputViewBottomConstraintConstant()
+                self.inputAccessoryView?.superview?.layoutIfNeeded()
             }
             DispatchQueue.main.async {
-                self?.justDidWillHide = false
+                self.justDidWillHide = false
             }
         }
+
+        return self
+    }
+
+    @discardableResult
+    open func stopKeyboardTracking() -> Self {
+        callbacks[.willShow] = nil
+        callbacks[.didShow] = nil
+        callbacks[.willChangeFrame] = nil
+        callbacks[.willHide] = nil
+        callbacks[.didHide] = nil
         return self
     }
     
@@ -267,33 +286,6 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
                 }
             }
             .store(in: &cancellables) // 统一存储，避免内存泄漏
-        return self
-    }
-    
-    @discardableResult
-    open func unbind() -> Self {
-        // Clear additional bottom space
-        self.additionalBottomSpace = nil
-        self.inputAccessoryView = nil
-        self.scrollView = nil
-        
-        // Remove keyboard callbacks
-        self.callbacks[.willShow] = nil
-        self.callbacks[.didShow] = nil
-        self.callbacks[.willChangeFrame] = nil
-        self.callbacks[.willHide] = nil
-        self.callbacks[.didHide] = nil
-        
-        // Unbind scrollView-related configurations
-        if let scrollView = self.scrollView {
-            // Remove target from the pan gesture recognizer
-            scrollView.panGestureRecognizer.removeTarget(self, action: #selector(self.handlePanGestureRecognizer))
-            
-            // Cancel all keyboard dismissal mode subscriptions
-            cancellables.forEach { $0.cancel() }
-            cancellables.removeAll()
-        }
-        
         return self
     }
     
