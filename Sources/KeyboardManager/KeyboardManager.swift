@@ -186,20 +186,12 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
             right: inputAccessoryView.rightAnchor.constraint(equalTo: superview.rightAnchor)
         ).activate()
         
-        startKeyboardTracking()
-        
-        return self
-    }
-    
-    @discardableResult
-    open func startKeyboardTracking(additionalBottomSpace: (() -> CGFloat)? = nil) -> Self {
-        self.additionalBottomSpace = additionalBottomSpace
-
         callbacks[.willShow] = { [weak self] notification in
             guard let self,
                   self.isKeyboardVisible,
                   self.constraints?.bottom?.constant == self.additionalInputViewBottomConstraintConstant(),
-                  notification.isForCurrentApp
+                  notification.isForCurrentApp,
+                  self.isViewActuallyVisible(self.inputAccessoryView)
             else { return }
 
             let keyboardHeight = notification.endFrame.height
@@ -223,7 +215,8 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
         callbacks[.willChangeFrame] = { [weak self] notification in
             guard let self,
                   self.isKeyboardVisible,
-                  notification.isForCurrentApp
+                  notification.isForCurrentApp,
+                  self.isViewActuallyVisible(self.inputAccessoryView)
             else { return }
 
             let keyboardHeight = notification.endFrame.height
@@ -245,7 +238,11 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
         }
 
         callbacks[.willHide] = { [weak self] notification in
-            guard let self, notification.isForCurrentApp else { return }
+            guard let self,
+                  notification.isForCurrentApp,
+                  self.isViewActuallyVisible(self.inputAccessoryView)
+            else { return }
+            
             self.justDidWillHide = true
             self.animateAlongside(notification) {
                 self.constraints?.bottom?.constant = self.additionalInputViewBottomConstraintConstant()
@@ -255,17 +252,6 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
                 self.justDidWillHide = false
             }
         }
-
-        return self
-    }
-
-    @discardableResult
-    open func stopKeyboardTracking() -> Self {
-        callbacks[.willShow] = nil
-        callbacks[.didShow] = nil
-        callbacks[.willChangeFrame] = nil
-        callbacks[.willHide] = nil
-        callbacks[.didHide] = nil
         return self
     }
     
@@ -288,6 +274,22 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
             .store(in: &cancellables) // 统一存储，避免内存泄漏
         return self
     }
+    
+    func isViewActuallyVisible(_ view: UIView?) -> Bool {
+        guard let view = view else { return false }
+
+        // 检查是否挂载到 window
+        guard view.window != nil else { return false }
+
+        // 检查 visibility 属性
+        guard !view.isHidden, view.alpha > 0.01 else { return false }
+
+        // 检查是否有frame
+        if view.bounds.width == 0 || view.bounds.height == 0 { return false }
+        
+        return true
+    }
+
     
     // MARK: - Keyboard Notifications
     
