@@ -281,6 +281,11 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
         return self
     }
     
+    /// Binds to a UIViewController to observe transition context and coordinate keyboard behavior
+    /// - Note: 自动感知转场交互（如侧滑返回），避免在转场中响应键盘事件
+    /// - Parameter viewController: The view controller to bind
+    /// - Returns: Self
+    @discardableResult
     open func bind(to viewController: UIViewController) -> Self {
         self.viewController = viewController
         return self
