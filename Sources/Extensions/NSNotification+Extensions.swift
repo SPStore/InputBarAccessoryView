@@ -27,7 +27,7 @@
 
 import UIKit
 
-internal extension NSNotification {
+internal extension Notification {
     
     var event: KeyboardEvent {
         switch self.name {

@@ -53,7 +53,7 @@ public struct KeyboardNotification {
     /// Requires that the `NSNotification` is based on a `UIKeyboard...` event
     ///
     /// - Parameter notification: `KeyboardNotification`
-    public init?(from notification: NSNotification) {
+    public init?(from notification: Notification) {
         guard notification.event != .unknown else { return nil }
         self.event = notification.event
         self.timeInterval = notification.timeInterval ?? 0.25

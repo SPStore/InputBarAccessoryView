@@ -43,6 +43,8 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     
     /// A closure that is called after the `inputAccessoryView` has been successfully bound to the keyboard.
     open var inputAccessoryViewDidBind: (() -> Void)?
+    
+    open weak var viewController: UIViewController?
         
     /// A flag that indicates if a portion of the keyboard is visible on the screen
     /// - Deprecated: Use `isKeyboardVisible` instead.
@@ -58,6 +60,8 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     
     /// A flag that indicates if the keyboard has been fully shown (true from `keyboardDidShow` to `keyboardWillHide`).
     private(set) public var isKeyboardFullyVisible: Bool = false
+    
+    private var isInteractionCanceled: Bool = false
     
     /// A flag that indicates if the additional bottom space should be applied to
     /// the interactive dismissal of the keyboard
@@ -195,8 +199,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
             guard let self,
                   self.isKeyboardVisible,
                   self.constraints?.bottom?.constant == self.additionalInputViewBottomConstraintConstant(),
-                  notification.isForCurrentApp,
-                  self.isInputAccessoryViewVisible()
+                  canHandleKeyboardTracking(notification)
             else { return }
 
             let keyboardHeight = notification.endFrame.height
@@ -220,8 +223,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
         callbacks[.willChangeFrame] = { [weak self] notification in
             guard let self,
                   self.isKeyboardVisible,
-                  notification.isForCurrentApp,
-                  self.isInputAccessoryViewVisible()
+                  canHandleKeyboardTracking(notification)
             else { return }
 
             let keyboardHeight = notification.endFrame.height
@@ -244,8 +246,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
 
         callbacks[.willHide] = { [weak self] notification in
             guard let self,
-                  notification.isForCurrentApp,
-                  self.isInputAccessoryViewVisible()
+                  canHandleKeyboardTracking(notification)
             else { return }
             
             self.justDidWillHide = true
@@ -280,6 +281,41 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
         return self
     }
     
+    open func bind(to viewController: UIViewController) -> Self {
+        self.viewController = viewController
+        return self
+    }
+    
+    open func canHandleKeyboardTracking(_ notification: KeyboardNotification) -> Bool {
+        guard let viewController = self.viewController else {
+            return isInputAccessoryViewVisible() && notification.isForCurrentApp
+        }
+        
+        // 如果 transitionCoordinator 存在并且交互中（侧滑返回，禁止处理键盘追踪事件）
+        if let coordinator = viewController.transitionCoordinator, coordinator.isInteractive {
+            // 更新 isInteractionCanceled 状态
+            coordinator.notifyWhenInteractionChanges { context in
+                // isCanceled = true说明侧滑又取消了，此时系统会再次触发键盘的willShow，甚至触发多次，这里加一个isInteractionCanceled标记进行拦截
+                self.isInteractionCanceled = context.isCancelled
+            }
+            
+            // 动画完成后清理状态
+            coordinator.animate(alongsideTransition: nil) { _ in
+                // 系统触发willShow，是在完成动画之后，如果不延时直接重置状态，那么willShow依然能处理事件
+                // 这里延迟0.1s作为一个 最小干扰窗口，这样尽可能保证在一次取消转场周期之内，不要处理任何键盘追踪事件
+                // 当然不排除某些动画、卡顿导致willShow在0.1s后才发出，有可能会被再次处理，但这种极端情况难以避免，暂不考虑
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.isInteractionCanceled = false
+                }
+            }
+            
+            return false
+        }
+        
+        // isInteractionCanceled = true说明是侧滑返回又取消了，这种情况不做任何键盘处理
+        return !isInteractionCanceled && isInputAccessoryViewVisible() && notification.isForCurrentApp
+    }
+
     open func isInputAccessoryViewVisible() -> Bool {
         guard let view = self.inputAccessoryView else { return false }
 
@@ -301,7 +337,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     ///
     /// - Parameter notification: NSNotification
     @objc
-    open func keyboardDidShow(notification: NSNotification) {
+    open func keyboardDidShow(notification: Notification) {
         isKeyboardFullyVisible = true
         guard let keyboardNotification = KeyboardNotification(from: notification) else { return }
         callbacks[.didShow]?(keyboardNotification)
@@ -311,7 +347,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     ///
     /// - Parameter notification: NSNotification
     @objc
-    open func keyboardDidHide(notification: NSNotification) {
+    open func keyboardDidHide(notification: Notification) {
         isKeyboardVisible = false
         guard let keyboardNotification = KeyboardNotification(from: notification) else { return }
         callbacks[.didHide]?(keyboardNotification)
@@ -322,7 +358,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     ///
     /// - Parameter notification: NSNotification
     @objc
-    open func keyboardDidChangeFrame(notification: NSNotification) {
+    open func keyboardDidChangeFrame(notification: Notification) {
         guard let keyboardNotification = KeyboardNotification(from: notification) else { return }
         callbacks[.didChangeFrame]?(keyboardNotification)
         cachedNotification = keyboardNotification
@@ -332,7 +368,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     ///
     /// - Parameter notification: NSNotification
     @objc
-    open func keyboardWillChangeFrame(notification: NSNotification) {
+    open func keyboardWillChangeFrame(notification: Notification) {
         guard let keyboardNotification = KeyboardNotification(from: notification) else { return }
         callbacks[.willChangeFrame]?(keyboardNotification)
         cachedNotification = keyboardNotification
@@ -342,7 +378,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     ///
     /// - Parameter notification: NSNotification
     @objc
-    open func keyboardWillShow(notification: NSNotification) {
+    open func keyboardWillShow(notification: Notification) {
         isKeyboardVisible = true
         guard let keyboardNotification = KeyboardNotification(from: notification) else { return }
         callbacks[.willShow]?(keyboardNotification)
@@ -352,7 +388,7 @@ open class KeyboardManager: NSObject, UIGestureRecognizerDelegate {
     ///
     /// - Parameter notification: NSNotification
     @objc
-    open func keyboardWillHide(notification: NSNotification) {
+    open func keyboardWillHide(notification: Notification) {
         guard let keyboardNotification = KeyboardNotification(from: notification) else { return }
         isKeyboardFullyVisible = false
         callbacks[.willHide]?(keyboardNotification)
