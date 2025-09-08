@@ -2,6 +2,17 @@
 
 # InputBarAccessoryView
 
+本框架是fork于[nathantannar4/InputBarAccessoryView](https://github.com/nathantannar4/InputBarAccessoryView/)，在原框架的基础上改动内容如下：
+
+- Fixed textView flickering issue when typing multiple lines of @mentions: This issue was caused by setting textView.attributedText = NSAttributedString()
+- Fixed the issue: deleting all the spaces between two @mentions using backspace, continuing to delete either of the @mentions causes both @mentions to be deleted together
+- Supports inserting @mentions at any position, not just at the end of the text
+- Replaced UITableView with UICollectionView
+- Supports multiple consecutive @mentions
+- Supports horizontal scrolling functionality
+
+以上改动均已得到原作者的认可，但是由于改动过大，原作者不方便合并，本框架将独立维护。
+
 ### Features
 
 - [x] Autocomplete text with @mention, #hashtag or any other prefix 
@@ -143,14 +154,6 @@ private var onDeselectedAction: InputBarButtonItemAction?
 private var onEnabledAction: InputBarButtonItemAction?
 private var onDisabledAction: InputBarButtonItemAction?
 ```
-
-## Author
-<p>
-	<img src="https://github.com/nathantannar4/NTComponents/raw/master/NTComponents/Assets/Nathan.png" width="100" height="100">
-</p>
-
-**Nathan Tannar** - [https://nathantannar.me](https://nathantannar.me)
-**Jakub Kaspar** - [https://jakubkaspar.dev](https://jakubkaspar.dev)
 
 ## License
 
