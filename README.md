@@ -1,4 +1,4 @@
-[![Image](./Screenshots/Preview.gif)]()
+<img src="./Screenshots/Preview.gif" width="280">
 
 # InputBarAccessoryView
 
